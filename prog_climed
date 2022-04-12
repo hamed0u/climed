@@ -1,0 +1,133 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Apr 12 13:20:32 2022
+
+@author: Emilien
+"""
+
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+#  data-climed.py
+
+import glob
+import pandas as pd
+import os
+import re
+from datetime import date, time, datetime
+import argparse
+
+
+def match(ch):
+    
+    nl = len(ch)
+    regex = re.compile('^(((\d){4})(-(\d){2}){2})')
+    i = 0
+    while i < nl :
+        ligne = ch.iloc[i]
+        #print(ligne)
+        test = re.match(regex,str(ligne[0]))
+        if test :
+            #print(ligne[0])
+            return ligne
+        i = i + 1
+
+def new_date(date):
+    global OutputDir,nomficout, fileout
+    
+    racineOut = "cooperate" #racine des fichiers de sortie
+    Centrale = "SN000002"
+    
+    
+    dateheur = date.replace("-","")
+    dateheur = dateheur.replace(":","")
+    dateheur = dateheur.replace(" ","")
+    #print(dateheur)
+	
+    OutputDir=racineOut+"/"+date[:9]+"/"+Centrale+"/"
+    if (not os.path.exists(OutputDir)):
+        os.makedirs(OutputDir)
+        print("Creation Rep de sortie "+OutputDir)
+    fileout=OutputDir+dateheur+".txt"
+    if (not os.path.exists(fileout)):
+        print("creation fichier ",fileout)
+    FileCooperate=open(fileout,'w')
+    date = date.replace("-","/")
+    tup=(date,FileCooperate)
+    return tup
+
+
+def Write_Entete_Cooperate(FileCooperate):
+# ecriture de l'entete meteo dans fichier cooperate
+	FileCooperate.write("File name: "+fileout)
+	FileCooperate.write(" \n");
+	FileCooperate.write("Job:         JOB_001\n")
+	FileCooperate.write("Schedule:    B \"JOB_001\" \n")
+	FileCooperate.write("Serial num:  000001 \n")
+	FileCooperate.write(" \n")
+	FileCooperate.write("Channel map:\n");
+	FileCooperate.write("0: none  name:\"TIMESTAMP\"  units:\"aaaa/mm/dd\" \n")
+	FileCooperate.write("1: none  name:\"RH\"  units:\"%\" \n")
+	FileCooperate.write("2: none  name:\"AirTC\"  units:\"deg C\" \n")
+	FileCooperate.write("3: none  name:\"pyr_en\"  units:\"??\" \n")
+	FileCooperate.write("4: none  name:\"WD_deg\"  units:\"degres\" \n")
+	FileCooperate.write("5: none  name:\"WS_ms\"  units:\"m/s\" \n")
+	FileCooperate.write(" \n");
+	FileCooperate.write("DATA start: \n")
+
+
+def Get_date_atraiter():
+# soi ton passe une date en argument -d , soit on prend la date du jour
+    parser = argparse.ArgumentParser(description='-d <date format YYYY-mm-dd> ')
+    parser.add_argument('-d', '--date', help='Entrer une date à traiter(format YYYY-mm-dd)', required=False)           
+    args = parser.parse_args()
+
+# -d date_atraiter , si pas d'argument -d on prend la date du jour
+    d=args.date
+    if (d == None ):
+        today=datetime.now()
+        strtoday=today.strftime("%Y-%m-%d")
+        date_atraiter=strtoday
+        print("date a traiter ", date_atraiter)
+    else:
+        print("date a traiter = ",d)
+        date_atraiter = d
+        
+    return date_atraiter
+
+def main(args):
+    global data
+
+    date_atraiter = Get_date_atraiter
+    chem = "METEO/climed/"+str(date_atraiter)+"/CR3000*.txt"
+    
+    filelist = glob.glob(chem)
+    #print("fileliste ", filelist)
+
+    
+    
+    #headr = ["TIMESTAMP","RH","AirTC","pyr_en","WD_deg","WS_ms"]
+    headr = [0,3,4,5,6,7]
+    
+    for nomfic in filelist:
+        #print(nomfic)
+        data = pd.read_csv(nomfic, sep=",",usecols=headr, header=None)
+        #print(data)
+        #verifier si new data ou non
+        ligne=match(data)
+        date=ligne[0]
+        #print(date[:10])
+        print(ligne[0])
+
+        date,FileCooperate = new_date(date)
+        Write_Entete_Cooperate(FileCooperate)
+        for i in headr:
+            if i < 7:
+                FileCooperate.write(str(ligne[i])+", ")
+            FileCooperate.write(str(ligne[i]))
+    
+    return 0
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(main(sys.argv))
